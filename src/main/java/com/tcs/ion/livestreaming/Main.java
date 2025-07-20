@@ -1,3 +1,5 @@
+package com.tcs.ion.livestreaming;
+
 /**
  * Main application class for the CCTV Recorder system.
  * <p>

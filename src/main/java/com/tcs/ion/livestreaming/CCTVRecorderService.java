@@ -1,3 +1,5 @@
+package com.tcs.ion.livestreaming;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -422,7 +424,7 @@ synchronized private void startFfmpegTaskScheduler(Map<Integer, CCTVBean> update
     for(int res_id: currentlyRecordingCctvBeanMap.keySet()){
         FfmpegProcessBean processBean = new FfmpegProcessBean();
         FfmpegProcessHandler handler = new FfmpegProcessHandler(currentlyRecordingCctvBeanMap.get(res_id));
-        ScheduledFuture<?> future = ffmpegTaskScheduler.schedule(handler,10,TimeUnit.SECONDS);
+        ScheduledFuture<?> future = ffmpegTaskScheduler.schedule(handler,5,TimeUnit.SECONDS);
         processBean.setHandler(handler);
         processBean.setFutureFFmpegTask(future);
         cctvIdToFfmpegProcessMap.put(res_id, processBean);
