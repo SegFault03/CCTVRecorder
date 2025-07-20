@@ -16,9 +16,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 /**
@@ -58,6 +57,15 @@ public class CCTVRecorderService {
         private Process ffmpegProcess;       // The actual FFmpeg process running the recording
         private FfmpegProcessHandler handler; // Handler that manages the FFmpeg process lifecycle
         private Thread thread;               // Thread running the handler
+        private ScheduledFuture<?> futureFFmpegTask;
+
+        public ScheduledFuture<?> getFutureFFmpegTask() {
+            return futureFFmpegTask;
+        }
+
+        public void setFutureFFmpegTask(ScheduledFuture<?> futureFFmpegTask) {
+            this.futureFFmpegTask = futureFFmpegTask;
+        }
 
         /**
          * @return The FFmpeg process instance
@@ -280,7 +288,7 @@ private void setUpConfigFileWatchService() {
 
                     if(kind == StandardWatchEventKinds.ENTRY_MODIFY) {
                         logger.info("config.json modified at " + formatAndGetCurrentDateTime());
-                        readConfigFile();
+                        startFfmpegTaskScheduler(readConfigFile());
                     } else {
                         logger.info("Invalid action (DELETION, INSERTION) performed on config.json at " + formatAndGetCurrentDateTime());
                     }
@@ -405,6 +413,22 @@ public void stopAll() {
 }
 
 
+synchronized private void startFfmpegTaskScheduler(Map<Integer, CCTVBean> updatedMap) {
+    for(int res_id: updatedMap.keySet()) {
+        if(!currentlyRecordingCctvBeanMap.containsKey(res_id)) {
+            currentlyRecordingCctvBeanMap.put(res_id, updatedMap.get(res_id));
+        }
+    }
+    for(int res_id: currentlyRecordingCctvBeanMap.keySet()){
+        FfmpegProcessBean processBean = new FfmpegProcessBean();
+        FfmpegProcessHandler handler = new FfmpegProcessHandler(currentlyRecordingCctvBeanMap.get(res_id));
+        ScheduledFuture<?> future = ffmpegTaskScheduler.schedule(handler,10,TimeUnit.SECONDS);
+        processBean.setHandler(handler);
+        processBean.setFutureFFmpegTask(future);
+        cctvIdToFfmpegProcessMap.put(res_id, processBean);
+    }
+}
+
 
 /**
  * Starts the CCTVRecorderService with the following initialization steps:
@@ -423,17 +447,21 @@ public void start() {
     cleanDirectory();
     // Initialize the process map
     cctvIdToFfmpegProcessMap = new ConcurrentHashMap<>();
+    currentlyRecordingCctvBeanMap = new ConcurrentHashMap<>();
+    ConcurrentHashMap<Integer, CCTVBean> initialCctvBeanMap = readConfigFile();
+    ffmpegTaskScheduler = Executors.newScheduledThreadPool(10);
+    startFfmpegTaskScheduler(initialCctvBeanMap);
 
     // TODO: Replace this test code with production code that starts all cameras
     // For testing only - starts a single camera recording process
-    CCTVBean bean = readConfigFile().get(2);
-    FfmpegProcessBean processBean = new FfmpegProcessBean();
-    FfmpegProcessHandler handler = new FfmpegProcessHandler(bean);
-    Thread t = new Thread(handler);
-    t.setName("FFMPEG-Thread-1");
-    processBean.setHandler(handler);
-    processBean.setThread(t);
-    cctvIdToFfmpegProcessMap.put(2, processBean);
-    t.start();
+//    CCTVBean bean = readConfigFile().get(2);
+//    FfmpegProcessBean processBean = new FfmpegProcessBean();
+//    FfmpegProcessHandler handler = new FfmpegProcessHandler(bean);
+//    Thread t = new Thread(handler);
+//    t.setName("FFMPEG-Thread-1");
+//    processBean.setHandler(handler);
+//    processBean.setThread(t);
+//    cctvIdToFfmpegProcessMap.put(2, processBean);
+//    t.start();
 }
 }
